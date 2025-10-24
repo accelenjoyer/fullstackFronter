@@ -1,0 +1,14 @@
+
+.App {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  height: 100vh;
+  padding: 20px;
+}
+
+.left-panel, .right-panel {
+  border: 1px solid #ccc;
+  padding: 20px;
+  overflow-y: auto;
+}
