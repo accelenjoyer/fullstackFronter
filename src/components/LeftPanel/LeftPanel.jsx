@@ -83,6 +83,10 @@ const LeftPanel = ({ selectedItems, setSelectedItems }) => {
   };
 
   const selectItem = async (item) => {
+    if (selectedItems.some(selected => selected.id === item.id)) {
+      return;
+    }
+    
     try {
       await addToQueue(
         `select-item-${item.id}`,
