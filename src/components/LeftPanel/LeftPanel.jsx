@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import useRequestQueue from '../../customHooks/useRequestQueue';
 import "./LeftPanel.scss"
+
 const LeftPanel = ({ selectedItems, setSelectedItems }) => {
   const [filter, setFilter] = useState('');
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [displayedItems, setDisplayedItems] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectingIds, setSelectingIds] = useState(new Set()); // НОВОЕ: отслеживаем выбор
   
   const { addToQueue } = useRequestQueue();
 
@@ -83,11 +85,14 @@ const LeftPanel = ({ selectedItems, setSelectedItems }) => {
   };
 
   const selectItem = async (item) => {
-    if (selectedItems.some(selected => selected.id === item.id)) {
+    // Блокируем повторные клики на тот же элемент
+    if (selectingIds.has(item.id) || selectedItems.some(selected => selected.id === item.id)) {
       return;
     }
     
     try {
+      setSelectingIds(prev => new Set(prev).add(item.id));
+      
       await addToQueue(
         `select-item-${item.id}`,
         async () => {
@@ -102,6 +107,12 @@ const LeftPanel = ({ selectedItems, setSelectedItems }) => {
       setDisplayedItems(prev => prev.filter(displayedItem => displayedItem.id !== item.id));
     } catch (error) {
       console.error('Error selecting item:', error);
+    } finally {
+      setSelectingIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(item.id);
+        return newSet;
+      });
     }
   };
 
@@ -130,8 +141,11 @@ const LeftPanel = ({ selectedItems, setSelectedItems }) => {
           availableItems.map(item => (
             <div key={item.id} className="item">
               ID: {item.id}
-              <button onClick={() => selectItem(item)}>
-                Выбрать
+              <button 
+                onClick={() => selectItem(item)}
+                disabled={selectingIds.has(item.id) || selectedItems.some(selected => selected.id === item.id)}
+              >
+                {selectingIds.has(item.id) ? '...' : 'Выбрать'}
               </button>
             </div>
           ))
