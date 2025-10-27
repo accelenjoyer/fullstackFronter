@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import useRequestQueue from '../../customHooks/useRequestQueue';
 import "./LeftPanel.scss"
 
@@ -8,9 +8,11 @@ const LeftPanel = ({ selectedItems, setSelectedItems }) => {
   const [hasMore, setHasMore] = useState(true);
   const [displayedItems, setDisplayedItems] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectingIds, setSelectingIds] = useState(new Set()); // НОВОЕ: отслеживаем выбор
+  const [selectingIds, setSelectingIds] = useState(new Set());
   
   const { addToQueue } = useRequestQueue();
+  const observer = useRef();
+  const lastItemElementRef = useRef();
 
   const loadItems = useCallback(async (pageNum, search = '', reset = false) => {
     try {
@@ -50,11 +52,23 @@ const LeftPanel = ({ selectedItems, setSelectedItems }) => {
     loadItems(0, filter, true);
   }, [filter, loadItems]);
 
-  const loadMore = () => {
-    if (!isLoading && hasMore) {
-      loadItems(page + 1, filter, false);
+  useEffect(() => {
+    if (isLoading) return;
+    
+    if (observer.current) {
+      observer.current.disconnect();
     }
-  };
+    
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore) {
+        loadItems(page + 1, filter, false);
+      }
+    });
+    
+    if (lastItemElementRef.current) {
+      observer.current.observe(lastItemElementRef.current);
+    }
+  }, [isLoading, hasMore, page, filter, loadItems]);
 
   const addItem = async (newId) => {
     if (!newId) return;
@@ -85,7 +99,6 @@ const LeftPanel = ({ selectedItems, setSelectedItems }) => {
   };
 
   const selectItem = async (item) => {
-    // Блокируем повторные клики на тот же элемент
     if (selectingIds.has(item.id) || selectedItems.some(selected => selected.id === item.id)) {
       return;
     }
@@ -138,26 +151,36 @@ const LeftPanel = ({ selectedItems, setSelectedItems }) => {
         {availableItems.length === 0 && !isLoading ? (
           <p>Элементы не найдены</p>
         ) : (
-          availableItems.map(item => (
-            <div key={item.id} className="item">
-              ID: {item.id}
-              <button 
-                onClick={() => selectItem(item)}
-                disabled={selectingIds.has(item.id) || selectedItems.some(selected => selected.id === item.id)}
-              >
-                {selectingIds.has(item.id) ? '...' : 'Выбрать'}
-              </button>
-            </div>
-          ))
+          availableItems.map((item, index) => {
+            if (availableItems.length === index + 1) {
+              return (
+                <div key={item.id} className="item" ref={lastItemElementRef}>
+                  ID: {item.id}
+                  <button 
+                    onClick={() => selectItem(item)}
+                    disabled={selectingIds.has(item.id) || selectedItems.some(selected => selected.id === item.id)}
+                  >
+                    {selectingIds.has(item.id) ? '...' : 'Выбрать'}
+                  </button>
+                </div>
+              );
+            } else {
+              return (
+                <div key={item.id} className="item">
+                  ID: {item.id}
+                  <button 
+                    onClick={() => selectItem(item)}
+                    disabled={selectingIds.has(item.id) || selectedItems.some(selected => selected.id === item.id)}
+                  >
+                    {selectingIds.has(item.id) ? '...' : 'Выбрать'}
+                  </button>
+                </div>
+              );
+            }
+          })
         )}
         
         {isLoading && <p>Загрузка...</p>}
-        
-        {hasMore && !isLoading && (
-          <button onClick={loadMore}>
-            Загрузить еще 
-          </button>
-        )}
       </div>
     </div>
   );

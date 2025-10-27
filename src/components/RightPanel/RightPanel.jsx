@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import useRequestQueue from '../../customHooks/useRequestQueue';
 import './RightPanel.scss';
 
@@ -9,6 +9,8 @@ const RightPanel = ({ selectedItems, setSelectedItems }) => {
   const [isLoading, setIsLoading] = useState(false);
   
   const { addToQueue } = useRequestQueue();
+  const observer = useRef();
+  const lastItemElementRef = useRef();
 
   const loadSelectedItems = useCallback(async (pageNum, search = '', reset = false) => {
     try {
@@ -48,11 +50,23 @@ const RightPanel = ({ selectedItems, setSelectedItems }) => {
     loadSelectedItems(0, filter, true);
   }, [filter, loadSelectedItems]);
 
-  const loadMore = () => {
-    if (!isLoading && hasMore) {
-      loadSelectedItems(page + 1, filter, false);
+  useEffect(() => {
+    if (isLoading) return;
+    
+    if (observer.current) {
+      observer.current.disconnect();
     }
-  };
+    
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore) {
+        loadSelectedItems(page + 1, filter, false);
+      }
+    });
+    
+    if (lastItemElementRef.current) {
+      observer.current.observe(lastItemElementRef.current);
+    }
+  }, [isLoading, hasMore, page, filter, loadSelectedItems]);
 
   const removeItem = async (itemId) => {
     try {
@@ -129,28 +143,45 @@ const RightPanel = ({ selectedItems, setSelectedItems }) => {
         {filteredItems.length === 0 && !isLoading ? (
           <p>Нет выбранных элементов</p>
         ) : (
-          filteredItems.map((item, index) => (
-            <div
-              key={item.id}
-              className="item"
-              draggable
-              onDragStart={(e) => handleDragStart(e, index)}
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, index)}
-            >
-              ID: {item.id}
-              <button onClick={() => removeItem(item.id)}>
-                Удалить
-              </button>
-            </div>
-          ))
+          filteredItems.map((item, index) => {
+            if (filteredItems.length === index + 1) {
+              return (
+                <div
+                  key={item.id}
+                  className="item"
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, index)}
+                  ref={lastItemElementRef}
+                >
+                  ID: {item.id}
+                  <button onClick={() => removeItem(item.id)}>
+                    Удалить
+                  </button>
+                </div>
+              );
+            } else {
+              return (
+                <div
+                  key={item.id}
+                  className="item"
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, index)}
+                >
+                  ID: {item.id}
+                  <button onClick={() => removeItem(item.id)}>
+                    Удалить
+                  </button>
+                </div>
+              );
+            }
+          })
         )}
         
         {isLoading && <p>Загрузка...</p>}
-        
-        {hasMore && !isLoading && filteredItems.length > 0 && (
-          <button onClick={loadMore}>Загрузить еще </button>
-        )}
       </div>
     </div>
   );
